@@ -61,32 +61,15 @@ class Digest(Base):
 
 Base.metadata.create_all(engine)
 
-# ######################### SCHEDULE SECTION ############################
 
-scheduler = BackgroundScheduler()
-
-
-def print_date_time():
-    print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
-
-
-def collect_news():
-    newsgrabber()
-
-
-def init_scheduler():
-    scheduler.add_job(func=print_date_time, trigger="interval", seconds=5)
-    scheduler.add_job(func=collect_news, trigger="interval", seconds=600)
-    scheduler.start()
-    atexit.register(lambda: scheduler.shutdown())
-
-
-init_scheduler()
 # ######################### RATING SECTION ############################
-
 def rating_update():
-    pass
-
+    session = Session(bind=engine)
+    query = session.query(Post).all()
+    for i in query:
+        i.post_pop = random.randint(1,100)
+    session.commit()
+    print('Rating was updated.')
 
 # ######################### DIGEST SECTION ############################
 
@@ -100,7 +83,8 @@ def create_digest(user_id):
     for i in query:
         digest_list.append('* ' + i.post_summary + ' #link')
     digest_fin = '\n\n'.join(digest_list)  # create final digest
-    session.query(Digest).where(Digest.user_id == user_id).update({Digest.posts_list: digest_fin}, synchronize_session=False)
+    session.query(Digest).where(Digest.user_id == user_id).update({Digest.posts_list: digest_fin},
+                                                                  synchronize_session=False)
     session.commit()
 
 
@@ -156,6 +140,12 @@ def getnews(user_id):
     return digest.posts_list
 
 
+@app.route('/raterenew')
+def getnews():
+    rating_update()
+    return "Rating renewed."
+
+
 # @app.route('/test/<int:user_id>')
 # def test(user_id):
 #     # data = User.query.get(user_id)
@@ -165,6 +155,25 @@ def getnews(user_id):
 #     session = Session(bind=engine)
 #     data = session.query(Digest).where(Digest.user_id == user_id).first()
 #     return data.posts_list
+
+# ######################### SCHEDULE SECTION ############################
+
+scheduler = BackgroundScheduler()
+
+
+def print_date_time():
+    print(time.strftime("%A, %d. %B %Y %I:%M:%S %p"))
+
+
+def init_scheduler():
+    scheduler.add_job(func=print_date_time, trigger="interval", seconds=5)  # alive test
+    scheduler.add_job(func=rating_update, trigger="interval", seconds=300)  # update rating
+    scheduler.add_job(func=newsgrabber, trigger="interval", seconds=1200)  # update news posts
+    scheduler.start()
+    atexit.register(lambda: scheduler.shutdown())
+
+
+init_scheduler()
 
 
 if __name__ == "__main__":
